@@ -134,6 +134,10 @@ object MediaItemBuilder {
         filePath: String? = null,
         mimeType: String? = null
     ): Uri {
+        // JioSaavn / SoundCloud: filePath holds the HTTP stream URL — return it directly
+        if (LocalArtworkUri.isStreamingUri(contentUriString) && !filePath.isNullOrBlank()) {
+            return Uri.parse(filePath)
+        }
         directLocalFileUri(contentUriString, filePath, mimeType)?.let { return it }
         val uri = runCatching { Uri.parse(contentUriString) }.getOrNull()
             ?: return Uri.fromFile(File(contentUriString))

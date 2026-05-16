@@ -372,7 +372,8 @@ object AppModule {
         songRepository: SongRepository,
         favoritesDao: FavoritesDao,
         artistImageRepository: ArtistImageRepository,
-        folderTreeBuilder: FolderTreeBuilder
+        folderTreeBuilder: FolderTreeBuilder,
+        streamingRepository: com.theveloper.pixelplay.data.streaming.StreamingRepository
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
@@ -387,9 +388,9 @@ object AppModule {
             songRepository = songRepository,
             favoritesDao = favoritesDao,
             artistImageRepository = artistImageRepository,
-            folderTreeBuilder = folderTreeBuilder
+            folderTreeBuilder = folderTreeBuilder,
+            streamingRepository = streamingRepository
         )
-
     }
 
     @Provides

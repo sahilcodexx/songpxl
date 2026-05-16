@@ -564,7 +564,9 @@ interface MusicDao {
         SELECT """ + SONG_LIST_PROJECTION + """
         FROM songs
         WHERE (:applyDirectoryFilter = 0 OR id < 0 OR parent_directory_path IN (:allowedParentDirs))
-        ORDER BY date_added DESC, id DESC
+        AND album_art_uri_string IS NOT NULL
+        AND album_art_uri_string != ''
+        ORDER BY RANDOM()
         LIMIT :limit
     """)
     fun getHomeMixPreviewSongs(

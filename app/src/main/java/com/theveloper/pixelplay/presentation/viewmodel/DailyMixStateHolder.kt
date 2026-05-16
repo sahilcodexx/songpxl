@@ -4,6 +4,7 @@ import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
+import com.theveloper.pixelplay.data.streaming.StreamingRepository
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -36,7 +37,8 @@ import javax.inject.Singleton
 class DailyMixStateHolder @Inject constructor(
     private val dailyMixManager: DailyMixManager,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val streamingRepository: StreamingRepository
 ) {
     private var scope: CoroutineScope? = null
     private var updateJob: Job? = null
@@ -70,7 +72,15 @@ class DailyMixStateHolder @Inject constructor(
     fun updateDailyMix(favoriteSongIdsFlow: kotlinx.coroutines.flow.Flow<Set<String>>) {
         updateJob?.cancel()
         updateJob = scope?.launch(Dispatchers.IO) {
-            val allSongs = musicRepository.getAllSongsOnce()
+            var allSongs = musicRepository.getAllSongsOnce()
+
+            // If no local songs, populate from JioSaavn trending so home is never empty
+            if (allSongs.isEmpty()) {
+                try {
+                    allSongs = streamingRepository.getTrendingSongs(limit = 50)
+                } catch (_: Exception) { /* streaming unavailable, leave empty */ }
+            }
+
             if (allSongs.isNotEmpty()) {
                 val favoriteIds = favoriteSongIdsFlow.first()
 

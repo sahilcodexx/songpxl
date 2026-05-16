@@ -80,6 +80,8 @@ import androidx.paging.map
 import androidx.paging.filter
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
@@ -99,7 +101,8 @@ class MusicRepositoryImpl @Inject constructor(
     private val songRepository: SongRepository,
     private val favoritesDao: FavoritesDao,
     private val artistImageRepository: ArtistImageRepository,
-    private val folderTreeBuilder: FolderTreeBuilder
+    private val folderTreeBuilder: FolderTreeBuilder,
+    private val streamingRepository: com.theveloper.pixelplay.data.streaming.StreamingRepository
 ) : MusicRepository {
 
     companion object {
@@ -176,6 +179,10 @@ class MusicRepositoryImpl @Inject constructor(
             flow {
                 val (allowedParentDirs, applyDirectoryFilter) =
                     computeAllowedDirs(allowedDirs, blockedDirs)
+                // Prefetch trending songs from JioSaavn so DB is never empty on first launch
+                try {
+                    streamingRepository.getTrendingSongs(limit = 30)
+                } catch (_: Exception) { /* non-fatal, DB may already have cached data */ }
                 emit(
                     musicDao.getAllSongs(
                         allowedParentDirs = allowedParentDirs,
@@ -412,6 +419,12 @@ class MusicRepositoryImpl @Inject constructor(
         )
     }
 
+    /** Synchronous version using the cached StateFlow — avoids duplicate preference reads. */
+    private fun computeAllowedDirsSync(): Pair<List<String>, Boolean> {
+        val cached = cachedDirFilter.value
+        return cached.allowedParentDirs to cached.applyFilter
+    }
+
     private fun StorageFilter.toFilterMode(): Int = when (this) {
         StorageFilter.ALL -> 0
         StorageFilter.OFFLINE -> 1
@@ -545,43 +558,57 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun searchSongs(query: String, titleOnly: Boolean): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return combine(
-            userPreferencesRepository.allowedDirectoriesFlow,
-            userPreferencesRepository.blockedDirectoriesFlow
-        ) { allowedDirs, blockedDirs ->
-            allowedDirs to blockedDirs
-        }.flatMapLatest { (allowedDirs, blockedDirs) ->
-            flow {
-                val (allowedParentDirs, applyDirectoryFilter) =
-                    computeAllowedDirs(allowedDirs, blockedDirs)
-                emit(
-                    musicDao.searchSongsLimited(
+        // 1. Trigger streaming search (caches results into DB), then
+        // 2. Return a DB-backed flow so the UI reactively gets the cached results.
+        return flow { emit(Unit) }
+            .flatMapLatest {
+                flow {
+                    val (allowedParentDirs, applyDirectoryFilter) = computeAllowedDirsSync()
+                    // Fetch from streaming API first — results get written into DB
+                    streamingRepository.searchSongs(query = query, limit = SEARCH_RESULTS_LIMIT)
+                    // Now observe the DB (which now includes fresh streaming results)
+                    val dbFlow = musicDao.searchSongsLimited(
                         query = query,
                         allowedParentDirs = allowedParentDirs,
                         applyDirectoryFilter = applyDirectoryFilter,
                         limit = SEARCH_RESULTS_LIMIT,
                         titleOnly = titleOnly
                     )
-                )
-            }.flatMapLatest { it }
-        }.map { entities ->
-            entities.map { it.toSong() }
-        }.flowOn(Dispatchers.IO)
+                    // Collect DB flow and re-emit
+                    dbFlow.collect { entities -> emit(entities) }
+                }
+            }
+            .map { entities -> entities.map { it.toSong() } }
+            .flowOn(Dispatchers.IO)
     }
 
 
     override fun searchAlbums(query: String, minTracks: Int): Flow<List<Album>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return musicDao.searchAlbums(query, emptyList(), false, minTracks).map { entities ->
-            entities.map { it.toAlbum() }
-        }.flowOn(Dispatchers.IO)
+        return flow { emit(Unit) }
+            .flatMapLatest {
+                flow {
+                    streamingRepository.searchAlbums(query = query)
+                    musicDao.searchAlbums(query, emptyList(), false, minTracks)
+                        .collect { entities -> emit(entities) }
+                }
+            }
+            .map { entities -> entities.map { it.toAlbum() } }
+            .flowOn(Dispatchers.IO)
     }
 
     override fun searchArtists(query: String): Flow<List<Artist>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return musicDao.searchArtists(query, emptyList(), false).map { entities ->
-            entities.map { it.toArtist() }
-        }.flowOn(Dispatchers.IO)
+        return flow { emit(Unit) }
+            .flatMapLatest {
+                flow {
+                    streamingRepository.searchArtists(query = query)
+                    musicDao.searchArtists(query, emptyList(), false)
+                        .collect { entities -> emit(entities) }
+                }
+            }
+            .map { entities -> entities.map { it.toArtist() } }
+            .flowOn(Dispatchers.IO)
     }
 
     override suspend fun searchPlaylists(query: String): List<Playlist> {
@@ -749,6 +776,10 @@ class MusicRepositoryImpl @Inject constructor(
             flow {
                 val (allowedParentDirs, applyDirectoryFilter) =
                     computeAllowedDirs(allowedDirs, blockedDirs)
+                // Ensure streaming songs are in DB for the home mix preview
+                try {
+                    streamingRepository.getTrendingSongs(limit = limit)
+                } catch (_: Exception) { /* fallback: use whatever is cached */ }
                 emit(
                     musicDao.getHomeMixPreviewSongs(
                         limit = limit,

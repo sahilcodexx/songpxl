@@ -81,7 +81,15 @@ object LocalArtworkUri {
             !normalized.startsWith("qqmusic://") &&
             !normalized.startsWith("navidrome://") &&
             !normalized.startsWith("jellyfin://") &&
-            !normalized.startsWith("gdrive://")
+            !normalized.startsWith("gdrive://") &&
+            !normalized.startsWith("jiosaavn://") &&
+            !normalized.startsWith("soundcloud://")
+    }
+
+    /** Returns true if this is a streaming (cloud) URI that stores the stream URL in filePath. */
+    fun isStreamingUri(contentUriString: String): Boolean {
+        val normalized = contentUriString.lowercase()
+        return normalized.startsWith("jiosaavn://") || normalized.startsWith("soundcloud://")
     }
 
     fun resolveSongArtworkUri(
