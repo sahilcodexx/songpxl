@@ -72,14 +72,14 @@ class DailyMixStateHolder @Inject constructor(
     fun updateDailyMix(favoriteSongIdsFlow: kotlinx.coroutines.flow.Flow<Set<String>>) {
         updateJob?.cancel()
         updateJob = scope?.launch(Dispatchers.IO) {
-            var allSongs = musicRepository.getAllSongsOnce()
+            // Always pre-fetch trending so streaming songs are cached into DB
+            // before we call getAllSongsOnce() — this ensures they appear in the mix
+            // even when the user already has local songs.
+            try {
+                streamingRepository.getTrendingSongs(limit = 50)
+            } catch (_: Exception) { /* streaming unavailable, continue with local */ }
 
-            // If no local songs, populate from JioSaavn trending so home is never empty
-            if (allSongs.isEmpty()) {
-                try {
-                    allSongs = streamingRepository.getTrendingSongs(limit = 50)
-                } catch (_: Exception) { /* streaming unavailable, leave empty */ }
-            }
+            val allSongs = musicRepository.getAllSongsOnce()
 
             if (allSongs.isNotEmpty()) {
                 val favoriteIds = favoriteSongIdsFlow.first()
