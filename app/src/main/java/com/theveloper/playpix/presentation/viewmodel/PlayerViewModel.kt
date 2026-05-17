@@ -1151,6 +1151,11 @@ class PlayerViewModel @Inject constructor(
     private val _homeMixPreviewSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     val homeMixPreviewSongs: StateFlow<ImmutableList<Song>> = _homeMixPreviewSongs.asStateFlow()
 
+    fun reloadHomeMixFromApi() {
+        _homeMixPreviewSongs.value = persistentListOf()
+        loadHomeMixFromApi()
+    }
+
     private fun loadHomeMixFromApi() {
         viewModelScope.launch(Dispatchers.IO) {
             try {

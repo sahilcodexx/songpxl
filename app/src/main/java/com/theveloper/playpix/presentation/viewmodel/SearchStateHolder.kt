@@ -4,6 +4,7 @@ import com.theveloper.playpix.data.model.SearchFilterType
 import com.theveloper.playpix.data.model.SearchHistoryItem
 import com.theveloper.playpix.data.model.SearchResultItem
 import com.theveloper.playpix.data.repository.MusicRepository
+import com.theveloper.playpix.data.streaming.StreamingRepository
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -37,6 +38,7 @@ import kotlinx.coroutines.FlowPreview
 @Singleton
 class SearchStateHolder @Inject constructor(
     private val musicRepository: MusicRepository,
+    private val streamingRepository: StreamingRepository,
 ) {
     private companion object {
         const val SEARCH_DEBOUNCE_MS = 300L
@@ -92,8 +94,12 @@ class SearchStateHolder @Inject constructor(
 
                     try {
                         val currentFilter = _selectedSearchFilter.value
+                        var hasEmitted = false
                         musicRepository.searchAll(normalizedQuery, currentFilter).collect { resultsList ->
-                            // Sort: prioritize Song/Album matches over Artist/Playlist matches
+                            if (request.requestId != latestSearchRequestId.get()) {
+                                return@collect
+                            }
+                            hasEmitted = true
                             val sortedResults = resultsList.sortedWith(
                                 compareBy { result ->
                                     when (result) {
@@ -104,14 +110,23 @@ class SearchStateHolder @Inject constructor(
                                     }
                                 }
                             )
-
-                            if (request.requestId != latestSearchRequestId.get()) {
-                                return@collect
-                            }
-
                             val immutableResults = sortedResults.toImmutableList()
                             if (_searchResults.value != immutableResults) {
                                 _searchResults.value = immutableResults
+                            }
+                            // If DB returned nothing, fall back to streaming API directly
+                            if (resultsList.isEmpty() && request.requestId == latestSearchRequestId.get()) {
+                                try {
+                                    val streamingSongs = withContext(Dispatchers.IO) {
+                                        streamingRepository.searchSongs(query = normalizedQuery, limit = 20)
+                                    }
+                                    if (streamingSongs.isNotEmpty() && request.requestId == latestSearchRequestId.get()) {
+                                        val apiResults = streamingSongs.map { SearchResultItem.SongItem(it) }
+                                        _searchResults.value = apiResults.toImmutableList()
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.w(e, "Streaming fallback also failed for: $normalizedQuery")
+                                }
                             }
                         }
                     } catch (_: CancellationException) {
