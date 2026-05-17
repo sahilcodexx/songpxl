@@ -77,7 +77,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchSongs(query: String, limit: Int = 20): List<Song> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (response.status != "SUCCESS") return@withContext emptyList()
+            if (!response.success) return@withContext emptyList()
             val songs = response.data?.results ?: return@withContext emptyList()
             val entities = songs.map { it.toSongEntity() }
             cacheEntities(entities, songs)
@@ -95,7 +95,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchSongsForGenre(genreTag: String, limit: Int = 50): List<Song> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchSongs(query = genreTag, limit = limit)
-            if (response.status != "SUCCESS") return@withContext emptyList()
+            if (!response.success) return@withContext emptyList()
             val songs = response.data?.results ?: return@withContext emptyList()
             // Override genre field so DB lookups by genre name succeed
             val entities = songs.map { it.toSongEntity().copy(genre = genreTag) }
@@ -111,7 +111,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchAlbums(query = query)
-            if (response.status != "SUCCESS") return@withContext emptyList()
+            if (!response.success) return@withContext emptyList()
             response.data?.results?.map { it.toAlbumDomain() } ?: emptyList()
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchAlbums failed for query='$query'")
@@ -123,7 +123,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchArtists(query = query)
-            if (response.status != "SUCCESS") return@withContext emptyList()
+            if (!response.success) return@withContext emptyList()
             response.data?.results?.map { it.toArtistDomain() } ?: emptyList()
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchArtists failed for query='$query'")
@@ -158,7 +158,7 @@ class JioSaavnRepository @Inject constructor(
         val query = queries[dayOfYear % queries.size]
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (response.status != "SUCCESS") return@withContext emptyList()
+            if (!response.success) return@withContext emptyList()
             val songs = response.data?.results ?: return@withContext emptyList()
             // Shuffle based on today's seed so order differs each day
             val shuffled = songs.shuffled(java.util.Random(dayOfYear.toLong()))
@@ -181,13 +181,13 @@ class JioSaavnRepository @Inject constructor(
 
         val streamUrl   = bestDownloadUrl(downloadUrl)
         val artUrl      = bestImageUrl(image)
-        val durationMs  = (duration?.toLongOrNull() ?: 0L) * 1000L
+        val durationMs  = (duration?.toLong() ?: 0L) * 1000L
         val yearInt     = year?.toIntOrNull() ?: 0
 
         val artistRefs  = buildArtistRefs()
         val artistsJson = serializeArtistRefs(artistRefs)
         val displayArtist = artistRefs.firstOrNull { it.isPrimary }?.name
-            ?: primaryArtists.ifBlank { "Unknown Artist" }
+            ?: artists?.primary?.firstOrNull()?.name ?: "Unknown Artist"
 
         return SongEntity(
             id                  = dbSongId,
@@ -229,7 +229,7 @@ class JioSaavnRepository @Inject constructor(
 
     private fun JioSaavnAlbum.toAlbumDomain(): Album {
         val dbAlbumId  = albumDbId(id)
-        val primaryArtist = (artists?.primary ?: primaryArtists).firstOrNull()
+        val primaryArtist = artists?.primary?.firstOrNull()
         val artUrl     = bestImageUrl(image)
         val yearInt    = year?.toIntOrNull() ?: 0
         return Album(
@@ -264,7 +264,7 @@ class JioSaavnRepository @Inject constructor(
                     AlbumEntity(
                         id               = albumDbId(albumRef.id),
                         title            = albumRef.name,
-                        artistName       = artistRef?.name ?: song.primaryArtists,
+                        artistName       = artistRef?.name ?: song.artists?.primary?.firstOrNull()?.name ?: "",
                         artistId         = artistDbId(artistRef?.id ?: albumRef.id),
                         albumArtUriString = bestImageUrl(song.image).ifBlank { null },
                         songCount        = 0,

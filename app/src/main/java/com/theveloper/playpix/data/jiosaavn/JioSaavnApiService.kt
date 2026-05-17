@@ -5,13 +5,13 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * Retrofit interface for the JioSaavn unofficial API (saavn.dev).
- * Base URL: https://saavn.dev/api
+ * Retrofit interface for the JioSaavn unofficial API.
+ * Base URL: https://jiosavan-api2.vercel.app/
  */
 interface JioSaavnApiService {
 
     /** Search songs by query. Returns up to [limit] results. */
-    @GET("search/songs")
+    @GET("api/search/songs")
     suspend fun searchSongs(
         @Query("query") query: String,
         @Query("page") page: Int = 1,
@@ -19,7 +19,7 @@ interface JioSaavnApiService {
     ): JioSaavnSearchResponse
 
     /** Search albums by query. */
-    @GET("search/albums")
+    @GET("api/search/albums")
     suspend fun searchAlbums(
         @Query("query") query: String,
         @Query("page") page: Int = 1,
@@ -27,7 +27,7 @@ interface JioSaavnApiService {
     ): JioSaavnAlbumSearchResponse
 
     /** Search artists by query. */
-    @GET("search/artists")
+    @GET("api/search/artists")
     suspend fun searchArtists(
         @Query("query") query: String,
         @Query("page") page: Int = 1,
@@ -35,20 +35,16 @@ interface JioSaavnApiService {
     ): JioSaavnArtistSearchResponse
 
     /** Fetch song details by JioSaavn song ID. */
-    @GET("songs/{id}")
+    @GET("api/songs/{id}")
     suspend fun getSong(
         @Path("id") songId: String
     ): JioSaavnSongDetailResponse
-
-    /** Fetch chart / trending songs (home feed). */
-    @GET("charts")
-    suspend fun getCharts(): JioSaavnChartsResponse
 }
 
 // ── Response models ──────────────────────────────────────────────────────────
 
 data class JioSaavnSearchResponse(
-    val status: String = "",
+    val success: Boolean = false,
     val data: JioSaavnSongData? = null
 )
 
@@ -59,7 +55,7 @@ data class JioSaavnSongData(
 )
 
 data class JioSaavnAlbumSearchResponse(
-    val status: String = "",
+    val success: Boolean = false,
     val data: JioSaavnAlbumData? = null
 )
 
@@ -69,7 +65,7 @@ data class JioSaavnAlbumData(
 )
 
 data class JioSaavnArtistSearchResponse(
-    val status: String = "",
+    val success: Boolean = false,
     val data: JioSaavnArtistData? = null
 )
 
@@ -79,21 +75,8 @@ data class JioSaavnArtistData(
 )
 
 data class JioSaavnSongDetailResponse(
-    val status: String = "",
+    val success: Boolean = false,
     val data: List<JioSaavnSong> = emptyList()
-)
-
-data class JioSaavnChartsResponse(
-    val status: String = "",
-    val data: List<JioSaavnChart> = emptyList()
-)
-
-data class JioSaavnChart(
-    val id: String = "",
-    val title: String = "",
-    val subtitle: String = "",
-    val image: List<JioSaavnQuality> = emptyList(),
-    val url: String = ""
 )
 
 data class JioSaavnSong(
@@ -101,15 +84,12 @@ data class JioSaavnSong(
     val name: String = "",
     val year: String? = null,
     val releaseDate: String? = null,
-    val duration: String? = null,   // seconds as string
+    val duration: Int? = null,          // seconds as Int
     val label: String? = null,
-    val primaryArtists: String = "",
-    val primaryArtistsId: String = "",
-    val featuredArtists: String? = null,
-    val explicit: Boolean = false,
-    val playCount: String? = null,
+    val explicitContent: Boolean = false,
+    val playCount: Long? = null,
     val language: String? = null,
-    val hasLyrics: String? = null,
+    val hasLyrics: Boolean? = null,
     val url: String = "",
     val copyright: String? = null,
     val album: JioSaavnAlbumRef? = null,
@@ -141,16 +121,16 @@ data class JioSaavnArtistRef(
 
 data class JioSaavnQuality(
     val quality: String = "",
-    @com.google.gson.annotations.SerializedName("link") val url: String = ""
+    val url: String = ""   // new API uses "url" not "link"
 )
 
 data class JioSaavnAlbum(
     val id: String = "",
     val name: String = "",
     val year: String? = null,
-    val playCount: String? = null,
+    val playCount: Long? = null,
     val language: String? = null,
-    val explicit: Boolean = false,
+    val explicitContent: Boolean = false,
     val url: String = "",
     val primaryArtists: List<JioSaavnArtistRef> = emptyList(),
     val featuredArtists: List<JioSaavnArtistRef> = emptyList(),
