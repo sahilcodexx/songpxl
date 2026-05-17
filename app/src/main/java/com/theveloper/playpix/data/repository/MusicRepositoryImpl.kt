@@ -7,7 +7,6 @@ package com.theveloper.playpix.data.repository
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
 
 import com.theveloper.playpix.data.model.Song
@@ -529,23 +528,9 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAllUniqueAudioDirectories(): Set<String> = withContext(Dispatchers.IO) {
-        LogUtils.d(this, "getAllUniqueAudioDirectories")
-        directoryScanMutex.withLock {
-            val directories = mutableSetOf<String>()
-            val projection = arrayOf(MediaStore.Audio.Media.DATA)
-            val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
-            context.contentResolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection, selection, null, null
-            )?.use { c ->
-                val dataColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-                while (c.moveToNext()) {
-                    File(c.getString(dataColumn)).parent?.let { directories.add(it) }
-                }
-            }
-            LogUtils.i(this, "Found ${directories.size} unique audio directories")
-            return@withLock directories
-        }
+        // Local MediaStore scanning disabled — streaming-only mode.
+        LogUtils.d(this, "getAllUniqueAudioDirectories: local scan disabled, returning empty")
+        emptySet()
     }
 
     override fun getAllUniqueAlbumArtUris(): Flow<List<Uri>> {
@@ -560,17 +545,18 @@ class MusicRepositoryImpl @Inject constructor(
         if (query.isBlank()) return flowOf(emptyList())
         // 1. Trigger streaming search (caches results into DB), then
         // 2. Return a DB-backed flow so the UI reactively gets the cached results.
+        // applyDirectoryFilter is always false — streaming songs have no local path,
+        // so directory filters must never be applied to them.
         return flow { emit(Unit) }
             .flatMapLatest {
                 flow {
-                    val (allowedParentDirs, applyDirectoryFilter) = computeAllowedDirsSync()
                     // Fetch from streaming API first — results get written into DB
                     streamingRepository.searchSongs(query = query, limit = SEARCH_RESULTS_LIMIT)
                     // Now observe the DB (which now includes fresh streaming results)
                     val dbFlow = musicDao.searchSongsLimited(
                         query = query,
-                        allowedParentDirs = allowedParentDirs,
-                        applyDirectoryFilter = applyDirectoryFilter,
+                        allowedParentDirs = emptyList(),
+                        applyDirectoryFilter = false,
                         limit = SEARCH_RESULTS_LIMIT,
                         titleOnly = titleOnly
                     )

@@ -48,7 +48,7 @@ interface JioSaavnApiService {
 // ── Response models ──────────────────────────────────────────────────────────
 
 data class JioSaavnSearchResponse(
-    val success: Boolean = false,
+    val status: String = "",
     val data: JioSaavnSongData? = null
 )
 
@@ -59,7 +59,7 @@ data class JioSaavnSongData(
 )
 
 data class JioSaavnAlbumSearchResponse(
-    val success: Boolean = false,
+    val status: String = "",
     val data: JioSaavnAlbumData? = null
 )
 
@@ -69,7 +69,7 @@ data class JioSaavnAlbumData(
 )
 
 data class JioSaavnArtistSearchResponse(
-    val success: Boolean = false,
+    val status: String = "",
     val data: JioSaavnArtistData? = null
 )
 
@@ -79,12 +79,12 @@ data class JioSaavnArtistData(
 )
 
 data class JioSaavnSongDetailResponse(
-    val success: Boolean = false,
+    val status: String = "",
     val data: List<JioSaavnSong> = emptyList()
 )
 
 data class JioSaavnChartsResponse(
-    val success: Boolean = false,
+    val status: String = "",
     val data: List<JioSaavnChart> = emptyList()
 )
 
@@ -141,7 +141,7 @@ data class JioSaavnArtistRef(
 
 data class JioSaavnQuality(
     val quality: String = "",
-    val url: String = ""
+    @com.google.gson.annotations.SerializedName("link") val url: String = ""
 )
 
 data class JioSaavnAlbum(

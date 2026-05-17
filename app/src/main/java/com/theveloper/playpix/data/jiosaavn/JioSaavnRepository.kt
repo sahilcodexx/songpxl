@@ -77,7 +77,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchSongs(query: String, limit: Int = 20): List<Song> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (!response.success) return@withContext emptyList()
+            if (response.status != "SUCCESS") return@withContext emptyList()
             val songs = response.data?.results ?: return@withContext emptyList()
             val entities = songs.map { it.toSongEntity() }
             cacheEntities(entities, songs)
@@ -92,7 +92,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchAlbums(query = query)
-            if (!response.success) return@withContext emptyList()
+            if (response.status != "SUCCESS") return@withContext emptyList()
             response.data?.results?.map { it.toAlbumDomain() } ?: emptyList()
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchAlbums failed for query='$query'")
@@ -104,7 +104,7 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchArtists(query = query)
-            if (!response.success) return@withContext emptyList()
+            if (response.status != "SUCCESS") return@withContext emptyList()
             response.data?.results?.map { it.toArtistDomain() } ?: emptyList()
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchArtists failed for query='$query'")
@@ -139,7 +139,7 @@ class JioSaavnRepository @Inject constructor(
         val query = queries[dayOfYear % queries.size]
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (!response.success) return@withContext emptyList()
+            if (response.status != "SUCCESS") return@withContext emptyList()
             val songs = response.data?.results ?: return@withContext emptyList()
             // Shuffle based on today's seed so order differs each day
             val shuffled = songs.shuffled(java.util.Random(dayOfYear.toLong()))

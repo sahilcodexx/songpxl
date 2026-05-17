@@ -5,7 +5,6 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -17,6 +16,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * MediaStoreObserver — kept for Hilt injection compatibility but local MediaStore
+ * scanning has been removed. The flow emits once on startup so downstream collectors
+ * (getAudioFiles, etc.) load from the DB exactly once.
+ */
 @Singleton
 class MediaStoreObserver @Inject constructor(
     @ApplicationContext private val context: Context
@@ -28,48 +32,22 @@ class MediaStoreObserver @Inject constructor(
     )
     val mediaStoreChanges: SharedFlow<Unit> = _mediaStoreChanges.asSharedFlow()
 
-    @Volatile
-    private var isRegistered: Boolean = false
-
     init {
-        ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-    }
-
-    fun register() {
-        if (isRegistered) return
-        context.contentResolver.registerContentObserver(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            true,
-            this
-        )
-        isRegistered = true
-    }
-
-    fun unregister() {
-        if (!isRegistered) return
-        context.contentResolver.unregisterContentObserver(this)
-        isRegistered = false
-    }
-
-    override fun onStart(owner: LifecycleOwner) {
-        register()
-    }
-
-    override fun onStop(owner: LifecycleOwner) {
-        unregister()
-    }
-
-    override fun onDestroy(owner: LifecycleOwner) {
-        unregister()
-        owner.lifecycle.removeObserver(this)
-    }
-
-    override fun onChange(selfChange: Boolean, uri: Uri?) {
-        super.onChange(selfChange, uri)
+        // Emit once so collectors immediately get a value without waiting for MediaStore events.
         _mediaStoreChanges.tryEmit(Unit)
     }
 
-    fun forceRescan() {
-        _mediaStoreChanges.tryEmit(Unit)
-    }
+    /** No-op: local MediaStore scanning is disabled. */
+    fun register() { /* no-op */ }
+
+    /** No-op: local MediaStore scanning is disabled. */
+    fun unregister() { /* no-op */ }
+
+    override fun onStart(owner: LifecycleOwner) { /* no-op */ }
+    override fun onStop(owner: LifecycleOwner) { /* no-op */ }
+    override fun onDestroy(owner: LifecycleOwner) { /* no-op */ }
+
+    override fun onChange(selfChange: Boolean, uri: Uri?) { /* no-op */ }
+
+    fun forceRescan() { /* no-op */ }
 }

@@ -15,6 +15,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.theveloper.playpix.data.preferences.UserPreferencesRepository
 import com.theveloper.playpix.data.repository.ArtistImageRepository
+import com.theveloper.playpix.data.streaming.StreamingRepository
 import com.theveloper.playpix.data.telegram.TelegramRepository
 import com.theveloper.playpix.presentation.viewmodel.LibraryStateHolder
 import com.theveloper.playpix.presentation.viewmodel.ThemeStateHolder
@@ -68,6 +69,9 @@ class PlayPixApplication : Application(), ImageLoaderFactory, Configuration.Prov
     @Inject
     lateinit var userPreferencesRepository: dagger.Lazy<UserPreferencesRepository>
 
+    @Inject
+    lateinit var streamingRepository: dagger.Lazy<StreamingRepository>
+
     private val startupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // AÑADE EL COMPANION OBJECT
@@ -120,6 +124,13 @@ class PlayPixApplication : Application(), ImageLoaderFactory, Configuration.Prov
             }.getOrNull()
             if (savedLimit != null) {
                 AlbumArtCacheManager.configuredCacheLimitMb = savedLimit.toLong()
+            }
+        }
+
+        // Pre-fetch trending streaming songs into DB so Library shows them immediately
+        startupScope.launch {
+            runCatching {
+                streamingRepository.get().getTrendingSongs(limit = 50)
             }
         }
     }
