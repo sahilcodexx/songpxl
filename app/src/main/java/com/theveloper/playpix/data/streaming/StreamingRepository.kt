@@ -5,6 +5,8 @@ import com.theveloper.playpix.data.jiosaavn.JioSaavnRepository
 import com.theveloper.playpix.data.model.Album
 import com.theveloper.playpix.data.model.Artist
 import com.theveloper.playpix.data.model.Song
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -55,15 +57,29 @@ class StreamingRepository @Inject constructor(
      * Fetch trending songs for the home screen and Daily Mix.
      * Parallel fetch: JioSaavn trending (Hindi) + iTunes trending (English).
      */
-    suspend fun getTrendingSongs(limit: Int = 30): List<Song> {
-        val jioSongs = try {
-            jioSaavn.getTrendingSongs(limit = limit)
-        } catch (e: Exception) {
-            Timber.w(e, "$TAG: JioSaavn trending failed")
-            emptyList()
+    suspend fun getTrendingSongs(limit: Int = 30): List<Song> = coroutineScope {
+        val jioDeferred = async {
+            runCatching { jioSaavn.getTrendingSongs(limit = limit) }
+                .getOrDefault(emptyList())
         }
-        Timber.d("$TAG: getTrendingSongs → ${jioSongs.size} songs")
-        return jioSongs
+        val iTunesDeferred = async {
+            runCatching { iTunes.searchSongs(query = "top hits", limit = limit) }
+                .getOrDefault(emptyList())
+        }
+
+        val jioSongs = jioDeferred.await()
+        val iTunesSongs = iTunesDeferred.await()
+
+        if (jioSongs.isNotEmpty()) {
+            Timber.d("$TAG: getTrendingSongs → ${jioSongs.size} JioSaavn songs")
+        } else {
+            Timber.w("$TAG: JioSaavn trending returned no songs, falling back to iTunes")
+        }
+        if (iTunesSongs.isNotEmpty()) {
+            Timber.d("$TAG: getTrendingSongs → ${iTunesSongs.size} iTunes songs")
+        }
+
+        (jioSongs + iTunesSongs).distinctBy { it.id }.take(limit)
     }
 
     /**

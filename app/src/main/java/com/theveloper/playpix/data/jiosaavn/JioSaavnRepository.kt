@@ -64,8 +64,9 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchSongs(query: String, limit: Int = 20): List<Song> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (!response.success) return@withContext emptyList()
-            response.data?.results?.map { it.toSong() } ?: emptyList()
+            val results = response.data?.results.orEmpty()
+            if (results.isEmpty()) return@withContext emptyList()
+            results.map { it.toSong() }
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchSongs failed for '$query'")
             emptyList()
@@ -75,8 +76,9 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchSongsForGenre(genreTag: String, limit: Int = 50): List<Song> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchSongs(query = genreTag, limit = limit)
-            if (!response.success) return@withContext emptyList()
-            response.data?.results?.map { it.toSong(overrideGenre = genreTag) } ?: emptyList()
+            val results = response.data?.results.orEmpty()
+            if (results.isEmpty()) return@withContext emptyList()
+            results.map { it.toSong(overrideGenre = genreTag) }
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchSongsForGenre failed for '$genreTag'")
             emptyList()
@@ -86,8 +88,9 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchAlbums(query = query)
-            if (!response.success) return@withContext emptyList()
-            response.data?.results?.map { it.toAlbum() } ?: emptyList()
+            val results = response.data?.results.orEmpty()
+            if (results.isEmpty()) return@withContext emptyList()
+            results.map { it.toAlbum() }
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchAlbums failed for '$query'")
             emptyList()
@@ -97,8 +100,9 @@ class JioSaavnRepository @Inject constructor(
     suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchArtists(query = query)
-            if (!response.success) return@withContext emptyList()
-            response.data?.results?.map { it.toArtist() } ?: emptyList()
+            val results = response.data?.results.orEmpty()
+            if (results.isEmpty()) return@withContext emptyList()
+            results.map { it.toArtist() }
         } catch (e: Exception) {
             Timber.w(e, "$TAG: searchArtists failed for '$query'")
             emptyList()
@@ -127,8 +131,8 @@ class JioSaavnRepository @Inject constructor(
         val query = queries[dayOfYear % queries.size]
         try {
             val response = api.searchSongs(query = query, limit = limit)
-            if (!response.success) return@withContext emptyList()
-            val songs = response.data?.results ?: return@withContext emptyList()
+            val songs = response.data?.results.orEmpty()
+            if (songs.isEmpty()) return@withContext emptyList()
             val shuffled = songs.shuffled(java.util.Random(dayOfYear.toLong()))
             Timber.d("$TAG: getTrendingSongs returned ${shuffled.size} songs for '$query'")
             shuffled.map { it.toSong() }
