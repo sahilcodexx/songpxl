@@ -177,16 +177,12 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getPaginatedSongs(sortOption: SortOption, storageFilter: com.theveloper.playpix.data.model.StorageFilter): Flow<PagingData<Song>> {
+        // DB is empty for streaming — fetch directly from API and wrap in PagingData
         return flow {
-            // If DB has no songs at all, prefetch trending so the Pager has data to show
-            runCatching {
-                val count = musicDao.getSongCountOnce()
-                if (count == 0) {
-                    streamingRepository.getTrendingSongs(limit = 50)
-                }
-            }
-            emit(songRepository.getPaginatedSongs(sortOption, storageFilter))
-        }.flatMapLatest { it }.flowOn(Dispatchers.IO)
+            val songs = runCatching { streamingRepository.getTrendingSongs(limit = 50) }
+                .getOrElse { emptyList() }
+            emit(PagingData.from(songs))
+        }.flowOn(Dispatchers.IO)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

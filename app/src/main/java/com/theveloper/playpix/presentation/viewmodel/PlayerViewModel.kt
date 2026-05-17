@@ -1124,7 +1124,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = true
+            initialValue = false
         )
 
     private val _isInitialDataLoaded = MutableStateFlow(false)

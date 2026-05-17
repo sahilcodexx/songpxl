@@ -221,6 +221,8 @@ class LibraryStateHolder @Inject constructor(
             // Restore last storage filter (All / Cloud / Local)
             _currentStorageFilter.value = userPreferencesRepository.lastStorageFilterFlow.first()
         }
+        // Immediately start loading songs from API — don't wait for sync state
+        startObservingLibraryData()
     }
 
     fun onCleared() {
