@@ -147,17 +147,10 @@ class DailyMixStateHolder @Inject constructor(
      * Check if daily mix needs updating (new day) and update if so.
      */
     fun checkAndUpdateIfNeeded(favoriteSongIdsFlow: kotlinx.coroutines.flow.Flow<Set<String>>) {
+        // Always refresh from API on every app open — streaming app, no DB dependency
+        updateDailyMix(favoriteSongIdsFlow)
         scope?.launch {
-            val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
-            val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-            val lastUpdateDay = Calendar.getInstance().apply {
-                timeInMillis = lastUpdate
-            }.get(Calendar.DAY_OF_YEAR)
-
-            if (today != lastUpdateDay) {
-                updateDailyMix(favoriteSongIdsFlow)
-                userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
-            }
+            userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
         }
     }
 
