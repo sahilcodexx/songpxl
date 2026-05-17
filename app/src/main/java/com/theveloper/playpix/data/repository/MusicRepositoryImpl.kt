@@ -169,31 +169,11 @@ class MusicRepositoryImpl @Inject constructor(
             .toList()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun getAudioFiles(): Flow<List<Song>> {
-        return combine(
-            userPreferencesRepository.allowedDirectoriesFlow,
-            userPreferencesRepository.blockedDirectoriesFlow
-        ) { allowedDirs, blockedDirs ->
-            allowedDirs to blockedDirs
-        }.flatMapLatest { (allowedDirs, blockedDirs) ->
-            flow {
-                val (allowedParentDirs, applyDirectoryFilter) =
-                    computeAllowedDirs(allowedDirs, blockedDirs)
-                // Prefetch trending songs from JioSaavn so DB is never empty on first launch
-                try {
-                    streamingRepository.getTrendingSongs(limit = 50)
-                } catch (_: Exception) { /* non-fatal, DB may already have cached data */ }
-                emit(
-                    musicDao.getAllSongs(
-                        allowedParentDirs = allowedParentDirs,
-                        applyDirectoryFilter = applyDirectoryFilter
-                    )
-                )
-            }.flatMapLatest { it }
-        }.map { entities ->
-            entities.map { it.toSong() }
-        }.distinctUntilChanged().flowOn(Dispatchers.IO)
-    }
+    override fun getAudioFiles(): Flow<List<Song>> = flow {
+        // Directly fetch from streaming API — no DB round-trip race condition
+        val songs = streamingRepository.getTrendingSongs(limit = 50)
+        emit(songs)
+    }.flowOn(Dispatchers.IO)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getPaginatedSongs(sortOption: SortOption, storageFilter: com.theveloper.playpix.data.model.StorageFilter): Flow<PagingData<Song>> {

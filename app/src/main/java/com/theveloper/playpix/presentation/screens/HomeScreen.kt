@@ -165,6 +165,11 @@ fun HomeScreen(
         mutableStateOf(false)
     }
 
+    // Guarantee a fresh fetch on first composition — rememberSaveable can freeze stale empty state
+    LaunchedEffect(Unit) {
+        playerViewModel.reloadHomeMixFromApi()
+    }
+
     LaunchedEffect(homePlaceholderRefreshGeneration, yourMixSongs.isEmpty()) {
         if (yourMixSongs.isEmpty()) {
             hasHomeLoadingMinimumElapsed = false

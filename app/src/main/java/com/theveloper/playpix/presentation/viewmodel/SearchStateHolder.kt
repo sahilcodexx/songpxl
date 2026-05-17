@@ -93,41 +93,17 @@ class SearchStateHolder @Inject constructor(
                     }
 
                     try {
-                        val currentFilter = _selectedSearchFilter.value
-                        var hasEmitted = false
-                        musicRepository.searchAll(normalizedQuery, currentFilter).collect { resultsList ->
-                            if (request.requestId != latestSearchRequestId.get()) {
-                                return@collect
-                            }
-                            hasEmitted = true
-                            val sortedResults = resultsList.sortedWith(
-                                compareBy { result ->
-                                    when (result) {
-                                        is SearchResultItem.SongItem -> 0
-                                        is SearchResultItem.AlbumItem -> 1
-                                        is SearchResultItem.ArtistItem -> 2
-                                        is SearchResultItem.PlaylistItem -> 3
-                                    }
-                                }
-                            )
-                            val immutableResults = sortedResults.toImmutableList()
-                            if (_searchResults.value != immutableResults) {
-                                _searchResults.value = immutableResults
-                            }
-                            // If DB returned nothing, fall back to streaming API directly
-                            if (resultsList.isEmpty() && request.requestId == latestSearchRequestId.get()) {
-                                try {
-                                    val streamingSongs = withContext(Dispatchers.IO) {
-                                        streamingRepository.searchSongs(query = normalizedQuery, limit = 20)
-                                    }
-                                    if (streamingSongs.isNotEmpty() && request.requestId == latestSearchRequestId.get()) {
-                                        val apiResults = streamingSongs.map { SearchResultItem.SongItem(it) }
-                                        _searchResults.value = apiResults.toImmutableList()
-                                    }
-                                } catch (e: Exception) {
-                                    Timber.w(e, "Streaming fallback also failed for: $normalizedQuery")
-                                }
-                            }
+                        // Call streaming API directly — no DB round-trip
+                        val streamingSongs = withContext(Dispatchers.IO) {
+                            streamingRepository.searchSongs(query = normalizedQuery, limit = 20)
+                        }
+                        if (request.requestId != latestSearchRequestId.get()) return@collectLatest
+                        if (streamingSongs.isNotEmpty()) {
+                            _searchResults.value = streamingSongs
+                                .map { SearchResultItem.SongItem(it) }
+                                .toImmutableList()
+                        } else {
+                            _searchResults.value = persistentListOf()
                         }
                     } catch (_: CancellationException) {
                         // Superseded by a newer query; ignore.

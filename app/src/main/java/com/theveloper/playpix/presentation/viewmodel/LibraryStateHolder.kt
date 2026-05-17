@@ -34,10 +34,9 @@ import javax.inject.Singleton
 
 private const val ENABLE_FOLDERS_STORAGE_FILTER = false
 private val FALLBACK_GENRE_NAMES = listOf(
-    "Hindi", "Punjabi", "English", "Tamil", "Telugu",
-    "Pop", "Rock", "Hip-Hop", "R&B", "Electronic",
-    "Bollywood", "Devotional", "Lofi", "Jazz", "Classical",
-    "Indie", "Romantic", "Party", "Rap", "Sufi"
+    "Hindi", "English", "Punjabi", "Tamil", "Telugu",
+    "Bengali", "Pop", "Rock", "Hip-Hop", "Classical",
+    "Devotional", "Jazz", "Electronic", "Indie", "Lofi", "Party"
 )
 
 private data class GenreSeed(
@@ -168,8 +167,8 @@ class LibraryStateHolder @Inject constructor(
     val genres: kotlinx.coroutines.flow.Flow<ImmutableList<com.theveloper.playpix.data.model.Genre>> =
         musicRepository.getGenres()
         .map { genres ->
-            val seeds = if (genres.isEmpty()) FALLBACK_GENRE_NAMES.mapIndexed { index, name ->
-                GenreSeed(id = "fallback_${index + 1}", name = name)
+            val seeds = if (genres.isEmpty()) FALLBACK_GENRE_NAMES.map { name ->
+                GenreSeed(id = name.lowercase(), name = name)
             } else {
                 genres.map { genre -> GenreSeed(id = genre.id, name = genre.name) }
             }
