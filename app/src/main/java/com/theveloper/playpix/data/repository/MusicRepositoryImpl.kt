@@ -553,58 +553,26 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun searchSongs(query: String, titleOnly: Boolean): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
-        // 1. Trigger streaming search (caches results into DB), then
-        // 2. Return a DB-backed flow so the UI reactively gets the cached results.
-        // applyDirectoryFilter is always false — streaming songs have no local path,
-        // so directory filters must never be applied to them.
-        return flow { emit(Unit) }
-            .flatMapLatest {
-                flow {
-                    // Fetch from streaming API first — results get written into DB
-                    streamingRepository.searchSongs(query = query, limit = SEARCH_RESULTS_LIMIT)
-                    // Now observe the DB (which now includes fresh streaming results)
-                    val dbFlow = musicDao.searchSongsLimited(
-                        query = query,
-                        allowedParentDirs = emptyList(),
-                        applyDirectoryFilter = false,
-                        limit = SEARCH_RESULTS_LIMIT,
-                        titleOnly = titleOnly
-                    )
-                    // Collect DB flow and re-emit
-                    dbFlow.collect { entities -> emit(entities) }
-                }
-            }
-            .map { entities -> entities.map { it.toSong() } }
-            .flowOn(Dispatchers.IO)
+        // Bypass DB entirely — fetch directly from streaming API and emit results
+        return flow {
+            val songs = streamingRepository.searchSongs(query = query, limit = SEARCH_RESULTS_LIMIT)
+            emit(songs)
+        }.flowOn(Dispatchers.IO)
     }
 
 
     override fun searchAlbums(query: String, minTracks: Int): Flow<List<Album>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return flow { emit(Unit) }
-            .flatMapLatest {
-                flow {
-                    streamingRepository.searchAlbums(query = query)
-                    musicDao.searchAlbums(query, emptyList(), false, minTracks)
-                        .collect { entities -> emit(entities) }
-                }
-            }
-            .map { entities -> entities.map { it.toAlbum() } }
-            .flowOn(Dispatchers.IO)
+        return flow {
+            emit(streamingRepository.searchAlbums(query = query))
+        }.flowOn(Dispatchers.IO)
     }
 
     override fun searchArtists(query: String): Flow<List<Artist>> {
         if (query.isBlank()) return flowOf(emptyList())
-        return flow { emit(Unit) }
-            .flatMapLatest {
-                flow {
-                    streamingRepository.searchArtists(query = query)
-                    musicDao.searchArtists(query, emptyList(), false)
-                        .collect { entities -> emit(entities) }
-                }
-            }
-            .map { entities -> entities.map { it.toArtist() } }
-            .flowOn(Dispatchers.IO)
+        return flow {
+            emit(streamingRepository.searchArtists(query = query))
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun searchPlaylists(query: String): List<Playlist> {
