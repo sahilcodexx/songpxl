@@ -166,7 +166,7 @@ class JioSaavnRepository @Inject constructor(
             cacheEntities(entities, shuffled)
             entities.map { it.toSong() }
         } catch (e: Exception) {
-            Timber.w(e, "$TAG: getTrendingSongs failed for query='$query'")
+            Timber.e(e, "$TAG: getTrendingSongs FAILED for query='$query' — ${e.javaClass.simpleName}: ${e.message}")
             emptyList()
         }
     }
@@ -301,7 +301,7 @@ class JioSaavnRepository @Inject constructor(
             musicDao.insertSongs(entities)
             musicDao.insertSongArtistCrossRefs(crossRefs)
         } catch (e: Exception) {
-            Timber.w(e, "$TAG: cacheEntities failed")
+            Timber.e(e, "$TAG: cacheEntities FAILED — ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 }

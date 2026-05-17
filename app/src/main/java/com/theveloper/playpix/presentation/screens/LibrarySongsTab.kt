@@ -219,8 +219,7 @@ fun LibrarySongsTab(
     val reachedEndOfPagination = songs.loadState.append.endOfPaginationReached
     val shouldShowInitialLoading = songs.itemCount == 0 && (
         isLoading ||
-            refreshState is LoadState.Loading ||
-            (refreshState is LoadState.NotLoading && !reachedEndOfPagination)
+            refreshState is LoadState.Loading
     )
 
     when {

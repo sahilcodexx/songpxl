@@ -23,6 +23,7 @@ import com.theveloper.playpix.data.media.AudioMetadataReader
 import com.theveloper.playpix.data.model.ArtistRef
 import com.theveloper.playpix.data.navidrome.NavidromeRepository
 import com.theveloper.playpix.data.preferences.UserPreferencesRepository
+import com.theveloper.playpix.data.streaming.StreamingRepository
 import com.theveloper.playpix.data.repository.LyricsRepository
 import com.theveloper.playpix.utils.LocalArtworkUri
 import com.theveloper.playpix.utils.normalizeMetadataTextOrEmpty
@@ -54,7 +55,8 @@ constructor(
         private val lyricsRepository: LyricsRepository,
         private val telegramDao: TelegramDao,
         private val neteaseDao: NeteaseDao,
-        private val navidromeRepository: NavidromeRepository
+        private val navidromeRepository: NavidromeRepository,
+        private val streamingRepository: StreamingRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result =
@@ -98,6 +100,15 @@ constructor(
                         syncNavidromeData()
                     } else {
                         Log.d(TAG, "Skipping Navidrome sync — not logged in.")
+                    }
+
+                    // Fetch trending JioSaavn songs so Library/Home are populated on every sync
+                    try {
+                        Timber.tag(TAG).i("Fetching JioSaavn trending songs...")
+                        val trendingSongs = streamingRepository.getTrendingSongs(limit = 50)
+                        Timber.tag(TAG).i("JioSaavn sync: cached ${trendingSongs.size} trending songs")
+                    } catch (e: Exception) {
+                        Timber.tag(TAG).e(e, "JioSaavn trending fetch failed during sync")
                     }
 
                     userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
