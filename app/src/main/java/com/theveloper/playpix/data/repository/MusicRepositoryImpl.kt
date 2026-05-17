@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -196,7 +197,16 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getPaginatedSongs(sortOption: SortOption, storageFilter: com.theveloper.playpix.data.model.StorageFilter): Flow<PagingData<Song>> {
-        return songRepository.getPaginatedSongs(sortOption, storageFilter)
+        return flow {
+            // If DB has no songs at all, prefetch trending so the Pager has data to show
+            runCatching {
+                val count = musicDao.getSongCountOnce()
+                if (count == 0) {
+                    streamingRepository.getTrendingSongs(limit = 50)
+                }
+            }
+            emit(songRepository.getPaginatedSongs(sortOption, storageFilter))
+        }.flatMapLatest { it }.flowOn(Dispatchers.IO)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
