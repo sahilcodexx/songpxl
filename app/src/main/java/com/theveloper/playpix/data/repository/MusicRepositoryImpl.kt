@@ -180,7 +180,7 @@ class MusicRepositoryImpl @Inject constructor(
                     computeAllowedDirs(allowedDirs, blockedDirs)
                 // Prefetch trending songs from JioSaavn so DB is never empty on first launch
                 try {
-                    streamingRepository.getTrendingSongs(limit = 30)
+                    streamingRepository.getTrendingSongs(limit = 50)
                 } catch (_: Exception) { /* non-fatal, DB may already have cached data */ }
                 emit(
                     musicDao.getAllSongs(
@@ -191,7 +191,7 @@ class MusicRepositoryImpl @Inject constructor(
             }.flatMapLatest { it }
         }.map { entities ->
             entities.map { it.toSong() }
-        }.distinctUntilChanged().conflate().flowOn(Dispatchers.IO)
+        }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -718,6 +718,8 @@ class MusicRepositoryImpl @Inject constructor(
 
     // Implementación de las nuevas funciones suspend para carga única
     override suspend fun getAllSongsOnce(): List<Song> = withContext(Dispatchers.IO) {
+        // Always pre-fetch trending so DB is never empty on first call
+        try { streamingRepository.getTrendingSongs(limit = 50) } catch (_: Exception) {}
         val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
         val blockedDirs = userPreferencesRepository.blockedDirectoriesFlow.first()
         val (allowedParentDirs, applyDirectoryFilter) =
@@ -764,7 +766,7 @@ class MusicRepositoryImpl @Inject constructor(
                     computeAllowedDirs(allowedDirs, blockedDirs)
                 // Ensure streaming songs are in DB for the home mix preview
                 try {
-                    streamingRepository.getTrendingSongs(limit = limit)
+                    streamingRepository.getTrendingSongs(limit = 50)
                 } catch (_: Exception) { /* fallback: use whatever is cached */ }
                 emit(
                     musicDao.getHomeMixPreviewSongs(
@@ -852,6 +854,14 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
+    // Hardcoded fallback genres shown even when DB is empty (streaming-only mode).
+    // These match the languages JioSaavn songs use in the genre/language field.
+    private val FALLBACK_GENRES = listOf(
+        "Hindi", "English", "Punjabi", "Tamil", "Telugu",
+        "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam",
+        "Pop", "Bollywood", "Devotional", "Lofi"
+    )
+
     override fun getGenres(): Flow<List<Genre>> {
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
@@ -862,6 +872,10 @@ class MusicRepositoryImpl @Inject constructor(
             flow {
                 val (allowedParentDirs, applyDirectoryFilter) =
                     computeAllowedDirs(allowedDirs, blockedDirs)
+                // Pre-fetch trending to populate DB genres on first launch
+                try {
+                    streamingRepository.getTrendingSongs(limit = 30)
+                } catch (_: Exception) { /* non-fatal */ }
                 emit(
                     combine(
                         musicDao.getUniqueGenres(
@@ -879,13 +893,20 @@ class MusicRepositoryImpl @Inject constructor(
                             .filter { it.isNotBlank() }
                             .map { buildGenre(it) }
                             .distinctBy { it.id }
-                            .sortedBy { it.name.lowercase() }
                             .toList()
-                        val unknownAlreadyPresent = knownGenres.any { it.id == UNKNOWN_GENRE_ID }
+                        // Merge DB genres with fallback genres; DB genres take priority
+                        val dbGenreIds = knownGenres.map { it.id }.toSet()
+                        val fallbackGenres = FALLBACK_GENRES
+                            .map { buildGenre(it) }
+                            .filter { it.id !in dbGenreIds }
+                        val allGenres = (knownGenres + fallbackGenres)
+                            .distinctBy { it.id }
+                            .sortedBy { it.name.lowercase() }
+                        val unknownAlreadyPresent = allGenres.any { it.id == UNKNOWN_GENRE_ID }
                         if (hasUnknown && !unknownAlreadyPresent) {
-                            knownGenres + buildGenre(UNKNOWN_GENRE_NAME)
+                            allGenres + buildGenre(UNKNOWN_GENRE_NAME)
                         } else {
-                            knownGenres
+                            allGenres
                         }
                     }
                 )

@@ -127,11 +127,9 @@ class PlayPixApplication : Application(), ImageLoaderFactory, Configuration.Prov
             }
         }
 
-        // Pre-fetch trending streaming songs into DB so Library shows them immediately
+        // Pre-fetch trending streaming songs into DB so Library/Home shows them immediately.
         startupScope.launch {
-            runCatching {
-                streamingRepository.get().getTrendingSongs(limit = 50)
-            }
+            runCatching { streamingRepository.get().getTrendingSongs(limit = 50) }
         }
     }
 

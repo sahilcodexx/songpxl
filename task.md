@@ -1,55 +1,38 @@
-# PlayPix Streaming Integration
+# Fix: Streaming data not showing in UI
 
-## Goal
-Replace local playback with JioSaavn + SoundCloud streaming.
-**ZERO UI/UX changes.**
+## Root Causes
+1. **Genres empty** - `getGenres()` reads only from DB. On fresh install DB is empty until trending fetch completes. 
+   Fix: Add hardcoded fallback genres (hindi, english, punjabi, etc) that always show even if DB is empty.
 
-## API Strategy
-- Search: JioSaavn first → if no results → SoundCloud
-- Browse (Home/Library): JioSaavn trending/charts
-- Playback: ExoPlayer already supports HTTP streams, just swap the URL
+2. **Home empty** - The mix generation waits for DB songs. If trending fetch is slow, UI shows "No data".
+   Fix: `getHomeMixPreviewSongs` and `getAudioFiles` already call getTrendingSongs() - but there's a timing issue.
+   The inner `musicDao.getAllSongs()` Room DAO flow IS reactive, so once trending songs are inserted, it WILL re-emit.
+   BUT: `homeMixPreviewSongs` StateFlow with WhileSubscribed(5000) may stop if unsubscribed briefly.
+   The `DailyMixStateHolder.updateDailyMix()` also calls getTrendingSongs then getAllSongsOnce.
+   
+3. **Search empty** - searchSongs calls streaming API then reads DB. Should work but let's verify.
 
-## JioSaavn (unofficial)
-Base URL: https://jiosaavn-api-privatechill.vercel.app (or saavn.me)
-Endpoints:
-- GET /search/songs?query=&page=&limit=
-- GET /search/albums?query=
-- GET /search/artists?query=
-- GET /songs/{id}
-- GET /albums?id=
-- GET /artists/{id}
-- GET /charts (trending)
-- GET /playlists?id=
+## Fixes Needed
 
-## SoundCloud (fallback)
-Use SoundCloud widget/stream API (no key needed for search)
-- https://api-v2.soundcloud.com/search?q=&client_id=...
-- Need a client_id (can be extracted from SC web app)
+### Fix 1: getGenres() - Add hardcoded fallback genres
+In MusicRepositoryImpl.getGenres(), after fetching from DB, if result is empty OR always,
+also fetch trending to populate DB + return hardcoded genres list as fallback.
 
-## What changes (backend only)
-1. New data layer: `StreamingRepository` with JioSaavn + SoundCloud clients
-2. Map API responses → existing Song/Album/Artist models (NO model changes)
-3. Replace MediaStore scanner with API calls in HomeViewModel, LibraryViewModel, SearchViewModel
-4. Swap playback URL in MusicService (ExoPlayer handles HTTP natively)
-5. Keep Room DB for caching API results (favorites, history, playlists still work)
+Better approach: Always emit a minimum set of genres (hindi, english, punjabi, pop, bollywood etc)
+even when DB has none. Then DB genres get added on top.
 
-## What NEVER changes
-- All screens, composables, navigation
-- ViewModels interfaces (just swap data source)
-- Models/entities used by UI
-- Theme, colors, animations
+### Fix 2: getAudioFiles / getHomeMixPreviewSongs - ensure reactive update
+The issue may be: Room DAO flow emits ONCE immediately when subscribed (with current data),
+then re-emits on changes. If DB is empty when flow starts, first emission = empty.
+When trending inserts happen, Room triggers invalidation → DAO flow re-emits with songs.
 
-## Files to modify
-- data/network/ — add JioSaavnApiService, SoundCloudApiService
-- data/repository/ — add StreamingRepository, modify MusicRepository
-- data/model/ — NO changes
-- data/worker/ — replace MediaStore sync with API prefetch
-- presentation/viewmodel/ — swap repository calls only
+This SHOULD work. Let me verify there's no issue with conflate() dropping intermediate emissions.
+
+### Fix 3: Verify search actually hits API
+searchSongs flow calls streamingRepository.searchSongs() then subscribes to DB.
+The DB flow gets the cached results → should work.
 
 ## Status
-- [ ] Explore existing repo structure
-- [ ] Build JioSaavn API client
-- [ ] Build SoundCloud API client  
-- [ ] Build StreamingRepository (merge + fallback logic)
-- [ ] Wire into existing ViewModels
-- [ ] Test build
+- [ ] Fix genres - add hardcoded fallback
+- [ ] Verify and fix home data flow 
+- [ ] Build v1.0.4 and release
