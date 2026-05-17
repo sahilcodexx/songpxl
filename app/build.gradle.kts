@@ -18,17 +18,17 @@ val keystoreProperties = Properties().apply {
     }
 }
 
-val enableAbiSplits = providers.gradleProperty("pixelplay.enableAbiSplits")
+val enableAbiSplits = providers.gradleProperty("playpix.enableAbiSplits")
     .getOrElse("true")
     .toBoolean()
 
-val enableComposeCompilerReports = providers.gradleProperty("pixelplay.enableComposeCompilerReports")
+val enableComposeCompilerReports = providers.gradleProperty("playpix.enableComposeCompilerReports")
     .getOrElse("false")
     .toBoolean()
 
 @Suppress("DEPRECATION")
 android {
-    namespace = "com.theveloper.pixelplay"
+    namespace = "com.theveloper.playpix"
     compileSdk = 37
 
     sourceSets {
@@ -59,7 +59,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.theveloper.pixelplay"
+        applicationId = "com.theveloper.playpix"
         minSdk = 30
         targetSdk = 37
         versionCode = (project.findProperty("APP_VERSION_CODE") as? String)?.toInt() ?: 1
@@ -70,7 +70,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("$rootDir/vz-pixelplay.jks")
+            storeFile = file("$rootDir/vz-playpix.jks")
             storePassword = keystoreProperties.getProperty("storePassword") ?: "dummyPassword"
             keyAlias = keystoreProperties.getProperty("keyAlias") ?: "dummyAlias"
             keyPassword = keystoreProperties.getProperty("keyPassword") ?: "dummyPassword"

@@ -1,4 +1,4 @@
-# PixelPlayer Streaming Integration
+# PlayPix Streaming Integration
 
 ## Goal
 Replace local playback with JioSaavn + SoundCloud streaming.

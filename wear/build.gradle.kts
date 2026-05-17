@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.theveloper.pixelplay"
+    namespace = "com.theveloper.playpix"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.theveloper.pixelplay"
+        applicationId = "com.theveloper.playpix"
         minSdk = 30
         targetSdk = 37
         versionCode = (project.findProperty("APP_VERSION_CODE") as? String)?.toInt() ?: 1

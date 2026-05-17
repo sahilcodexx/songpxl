@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.theveloper.pixelplay.baselineprofile"
+    namespace = "com.theveloper.playpix.baselineprofile"
     compileSdk = 37
 
     compileOptions {
