@@ -70,6 +70,10 @@
 # Gson generic type capture for backup/restore in release builds.
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
+
+# JioSaavn + iTunes API response models — Gson needs field names intact
+-keep class com.theveloper.playpix.data.jiosaavn.** { *; }
+-keep class com.theveloper.playpix.data.itunes.** { *; }
 -keep class com.theveloper.playpix.data.preferences.PreferenceBackupEntry { *; }
 -keep class com.theveloper.playpix.data.backup.model.** { *; }
 -keep class com.theveloper.playpix.data.backup.module.** { *; }
