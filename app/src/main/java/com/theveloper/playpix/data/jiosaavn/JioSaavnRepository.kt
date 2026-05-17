@@ -88,6 +88,25 @@ class JioSaavnRepository @Inject constructor(
         }
     }
 
+    /**
+     * Fetch songs for a specific genre and store them tagged with [genreTag] so
+     * the DB genre filter can find them later.
+     */
+    suspend fun searchSongsForGenre(genreTag: String, limit: Int = 50): List<Song> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.searchSongs(query = genreTag, limit = limit)
+            if (response.status != "SUCCESS") return@withContext emptyList()
+            val songs = response.data?.results ?: return@withContext emptyList()
+            // Override genre field so DB lookups by genre name succeed
+            val entities = songs.map { it.toSongEntity().copy(genre = genreTag) }
+            cacheEntities(entities, songs)
+            entities.map { it.toSong() }
+        } catch (e: Exception) {
+            Timber.w(e, "$TAG: searchSongsForGenre failed for genre='$genreTag'")
+            emptyList()
+        }
+    }
+
     /** Search JioSaavn for albums matching [query]. Returns mapped Album list. */
     suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
         try {

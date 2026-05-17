@@ -675,6 +675,13 @@ class MusicRepositoryImpl @Inject constructor(
                 val (allowedParentDirs, applyDirectoryFilter) =
                     computeAllowedDirs(allowedDirs, blockedDirs)
                 val genreName = if (mockEnabled) "Mock" else genreId
+                // Prefetch songs for this genre from JioSaavn, tagged with genreName,
+                // so the DB genre filter can find them.
+                if (!genreName.equals("unknown", ignoreCase = true) && !mockEnabled) {
+                    try {
+                        streamingRepository.searchSongsForGenre(genreTag = genreName, limit = 50)
+                    } catch (_: Exception) { /* non-fatal */ }
+                }
                 emit(
                     if (genreName.equals("unknown", ignoreCase = true)) {
                         musicDao.getSongsWithNullGenre(

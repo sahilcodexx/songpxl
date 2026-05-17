@@ -60,4 +60,11 @@ class StreamingRepository @Inject constructor(
      */
     suspend fun getTrendingSongs(limit: Int = 30): List<Song> =
         jioSaavn.getTrendingSongs(limit = limit)
+
+    /**
+     * Fetch songs for a specific genre, tagged with [genreTag] in DB so genre
+     * filters can find them.
+     */
+    suspend fun searchSongsForGenre(genreTag: String, limit: Int = 50): List<Song> =
+        jioSaavn.searchSongsForGenre(genreTag = genreTag, limit = limit)
 }
