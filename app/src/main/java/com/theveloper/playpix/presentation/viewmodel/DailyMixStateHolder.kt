@@ -67,19 +67,16 @@ class DailyMixStateHolder @Inject constructor(
 
     /**
      * Update the daily mix with new songs.
-     * Uses getAllSongsOnce() to load songs on-demand instead of keeping a permanent subscription.
+     * Fetches trending songs directly from the API — no DB dependency.
      */
     fun updateDailyMix(favoriteSongIdsFlow: kotlinx.coroutines.flow.Flow<Set<String>>) {
         updateJob?.cancel()
         updateJob = scope?.launch(Dispatchers.IO) {
-            // Always pre-fetch trending so streaming songs are cached into DB
-            // before we call getAllSongsOnce() — this ensures they appear in the mix
-            // even when the user already has local songs.
-            try {
+            val allSongs: List<Song> = try {
                 streamingRepository.getTrendingSongs(limit = 50)
-            } catch (_: Exception) { /* streaming unavailable, continue with local */ }
-
-            val allSongs = musicRepository.getAllSongsOnce()
+            } catch (_: Exception) {
+                emptyList()
+            }
 
             if (allSongs.isNotEmpty()) {
                 val favoriteIds = favoriteSongIdsFlow.first()

@@ -66,6 +66,7 @@ import com.theveloper.playpix.data.preferences.AlbumArtQuality
 import com.theveloper.playpix.data.preferences.ThemePreference
 import com.theveloper.playpix.data.repository.LyricsSearchResult
 import com.theveloper.playpix.data.repository.MusicRepository
+import com.theveloper.playpix.data.streaming.StreamingRepository
 import com.theveloper.playpix.data.service.MusicNotificationProvider
 import com.theveloper.playpix.data.service.MusicService
 import com.theveloper.playpix.data.service.player.CastPlayer
@@ -228,6 +229,7 @@ class PlayerViewModel @Inject constructor(
     private val telegramCacheManagerProvider: Lazy<com.theveloper.playpix.data.telegram.TelegramCacheManager>,
     private val listeningStatsTracker: ListeningStatsTracker,
     private val dailyMixStateHolder: DailyMixStateHolder,
+    private val streamingRepository: StreamingRepository,
     private val lyricsStateHolder: LyricsStateHolder,
     private val castStateHolder: CastStateHolder,
     private val castRouteStateHolder: CastRouteStateHolder,
@@ -930,6 +932,7 @@ class PlayerViewModel @Inject constructor(
         // Initialize helper classes with our coroutine scope
         listeningStatsTracker.initialize(viewModelScope)
         dailyMixStateHolder.initialize(viewModelScope)
+        loadHomeMixFromApi()
         lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback, playbackStateHolder.stablePlayerState)
         playbackStateHolder.initialize(viewModelScope)
         themeStateHolder.initialize(viewModelScope)
@@ -1145,14 +1148,21 @@ class PlayerViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val homeMixPreviewSongs: StateFlow<ImmutableList<Song>> = musicRepository.getHomeMixPreviewSongs(
-        limit = HOME_MIX_PREVIEW_LIMIT
-    ).map { it.toImmutableList() }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = persistentListOf()
-        )
+    private val _homeMixPreviewSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+    val homeMixPreviewSongs: StateFlow<ImmutableList<Song>> = _homeMixPreviewSongs.asStateFlow()
+
+    private fun loadHomeMixFromApi() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val songs = streamingRepository.getTrendingSongs(limit = 50)
+                if (songs.isNotEmpty()) {
+                    _homeMixPreviewSongs.value = songs.take(HOME_MIX_PREVIEW_LIMIT).toImmutableList()
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to load home mix from API")
+            }
+        }
+    }
 
     val songCountFlow: StateFlow<Int> = musicRepository.getSongCountFlow()
         .stateIn(
