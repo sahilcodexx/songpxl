@@ -170,18 +170,49 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(): Flow<List<Song>> = flow {
-        // Directly fetch from streaming API — no DB round-trip race condition
-        val songs = streamingRepository.getTrendingSongs(limit = 50)
-        emit(songs)
+        // Retry up to 5 times with 5s gap — handles Vercel cold start
+        var attempt = 0
+        val maxAttempts = 5
+        val retryDelayMs = 5_000L
+        while (attempt < maxAttempts) {
+            attempt++
+            val songs = try {
+                streamingRepository.getTrendingSongs(limit = 50)
+            } catch (e: Exception) {
+                android.util.Log.w("MusicRepo", "getAudioFiles attempt $attempt failed: ${e.javaClass.simpleName}")
+                emptyList()
+            }
+            if (songs.isNotEmpty()) {
+                emit(songs)
+                return@flow
+            }
+            if (attempt < maxAttempts) delay(retryDelayMs)
+        }
+        emit(emptyList()) // all attempts failed
     }.flowOn(Dispatchers.IO)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getPaginatedSongs(sortOption: SortOption, storageFilter: com.theveloper.playpix.data.model.StorageFilter): Flow<PagingData<Song>> {
-        // DB is empty for streaming — fetch directly from API and wrap in PagingData
-        return flow {
-            val songs = runCatching { streamingRepository.getTrendingSongs(limit = 50) }
-                .getOrElse { emptyList() }
-            emit(PagingData.from(songs))
+        // Retry up to 5 times with 5s gap — handles Vercel cold start
+        return flow<PagingData<Song>> {
+            var attempt = 0
+            val maxAttempts = 5
+            val retryDelayMs = 5_000L
+            while (attempt < maxAttempts) {
+                attempt++
+                val songs = try {
+                    streamingRepository.getTrendingSongs(limit = 50)
+                } catch (e: Exception) {
+                    android.util.Log.w("MusicRepo", "getPaginatedSongs attempt $attempt failed: ${e.javaClass.simpleName}")
+                    emptyList()
+                }
+                if (songs.isNotEmpty()) {
+                    emit(PagingData.from(songs))
+                    return@flow
+                }
+                if (attempt < maxAttempts) delay(retryDelayMs)
+            }
+            emit(PagingData.from(emptyList())) // all attempts failed
         }.flowOn(Dispatchers.IO)
     }
 

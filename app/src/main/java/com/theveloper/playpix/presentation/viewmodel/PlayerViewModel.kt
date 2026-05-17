@@ -1150,22 +1150,38 @@ class PlayerViewModel @Inject constructor(
 
     private val _homeMixPreviewSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     val homeMixPreviewSongs: StateFlow<ImmutableList<Song>> = _homeMixPreviewSongs.asStateFlow()
+    private var homeMixJob: kotlinx.coroutines.Job? = null
 
     fun reloadHomeMixFromApi() {
+        homeMixJob?.cancel()
         _homeMixPreviewSongs.value = persistentListOf()
         loadHomeMixFromApi()
     }
 
     private fun loadHomeMixFromApi() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val songs = streamingRepository.getTrendingSongs(limit = 50)
-                if (songs.isNotEmpty()) {
-                    _homeMixPreviewSongs.value = songs.take(HOME_MIX_PREVIEW_LIMIT).toImmutableList()
+        homeMixJob?.cancel()
+        homeMixJob = viewModelScope.launch(Dispatchers.IO) {
+            var attempt = 0
+            val maxAttempts = 5
+            val retryDelayMs = 5_000L
+            while (attempt < maxAttempts && _homeMixPreviewSongs.value.isEmpty()) {
+                attempt++
+                try {
+                    Timber.d("loadHomeMixFromApi: attempt $attempt")
+                    val songs = streamingRepository.getTrendingSongs(limit = 50)
+                    if (songs.isNotEmpty()) {
+                        _homeMixPreviewSongs.value = songs.take(HOME_MIX_PREVIEW_LIMIT).toImmutableList()
+                        Timber.d("loadHomeMixFromApi: loaded ${songs.size} songs on attempt $attempt")
+                        return@launch
+                    } else {
+                        Timber.w("loadHomeMixFromApi: empty result on attempt $attempt")
+                    }
+                } catch (e: Exception) {
+                    Timber.w(e, "loadHomeMixFromApi: attempt $attempt failed — ${e.javaClass.simpleName}")
                 }
-            } catch (e: Exception) {
-                Timber.w(e, "Failed to load home mix from API")
+                if (attempt < maxAttempts) delay(retryDelayMs)
             }
+            Timber.e("loadHomeMixFromApi: all $maxAttempts attempts failed")
         }
     }
 

@@ -10,6 +10,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
@@ -52,24 +53,31 @@ class DailyMixStateHolder @Inject constructor(
     fun updateDailyMix(favoriteSongIdsFlow: kotlinx.coroutines.flow.Flow<Set<String>>) {
         updateJob?.cancel()
         updateJob = scope?.launch(Dispatchers.IO) {
-            val allSongs: List<Song> = try {
-                streamingRepository.getTrendingSongs(limit = 50)
-            } catch (_: Exception) {
-                emptyList()
-            }
+            var attempt = 0
+            val maxAttempts = 5
+            val retryDelayMs = 5_000L
+            while (attempt < maxAttempts) {
+                attempt++
+                val allSongs: List<Song> = try {
+                    streamingRepository.getTrendingSongs(limit = 50)
+                } catch (_: Exception) {
+                    emptyList()
+                }
 
-            if (allSongs.isNotEmpty()) {
-                val favoriteIds = try { favoriteSongIdsFlow.first() } catch (_: Exception) { emptySet() }
+                if (allSongs.isNotEmpty()) {
+                    val favoriteIds = try { favoriteSongIdsFlow.first() } catch (_: Exception) { emptySet() }
 
-                val mix = dailyMixManager.generateDailyMix(allSongs, favoriteIds)
-                _dailyMixSongs.value = mix.toImmutableList()
-                userPreferencesRepository.saveDailyMixSongIds(mix.map { it.id })
+                    val mix = dailyMixManager.generateDailyMix(allSongs, favoriteIds)
+                    _dailyMixSongs.value = mix.toImmutableList()
+                    userPreferencesRepository.saveDailyMixSongIds(mix.map { it.id })
 
-                val yourMix = dailyMixManager.generateYourMix(allSongs, favoriteIds)
-                _yourMixSongs.value = yourMix.toImmutableList()
-                userPreferencesRepository.saveYourMixSongIds(yourMix.map { it.id })
-            } else {
-                // Leave existing values if API failed
+                    val yourMix = dailyMixManager.generateYourMix(allSongs, favoriteIds)
+                    _yourMixSongs.value = yourMix.toImmutableList()
+                    userPreferencesRepository.saveYourMixSongIds(yourMix.map { it.id })
+                    return@launch
+                }
+                // API returned empty — retry after delay
+                if (attempt < maxAttempts) delay(retryDelayMs)
             }
         }
     }
