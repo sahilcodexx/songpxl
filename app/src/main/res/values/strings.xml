@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PlayPix</string>
+    <string name="app_name">playpix</string>
     <string name="app_name_change_title">App Name Change</string>
     <string name="app_name_change_message">We have rebranded! Welcome to PlayPix — same great player, fresh new name. Keep playing!</string>
     <string name="do_not_show_again">Do not show again</string>
