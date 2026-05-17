@@ -1,5 +1,6 @@
 package com.theveloper.playpix.di
 
+import com.theveloper.playpix.data.itunes.ItunesApiService
 import com.theveloper.playpix.data.jiosaavn.JioSaavnApiService
 import com.theveloper.playpix.data.soundcloud.SoundCloudApiService
 import dagger.Module
@@ -19,6 +20,10 @@ annotation class JioSaavnRetrofit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class SoundCloudRetrofit
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ItunesRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -56,5 +61,22 @@ object StreamingModule {
     @Singleton
     fun provideSoundCloudApiService(@SoundCloudRetrofit retrofit: Retrofit): SoundCloudApiService {
         return retrofit.create(SoundCloudApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @ItunesRetrofit
+    fun provideItunesRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://itunes.apple.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideItunesApiService(@ItunesRetrofit retrofit: Retrofit): ItunesApiService {
+        return retrofit.create(ItunesApiService::class.java)
     }
 }
